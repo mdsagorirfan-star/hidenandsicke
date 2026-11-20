@@ -1,0 +1,6 @@
+{
+  "name": "HIDEVERSE",
+  "description": "Real-time 3D multiplayer Hide & Seek gaming platform with 5 interactive 3D maps, WebRTC voice channels, Gemini Live AI tactical coach, social rooms, and progression.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

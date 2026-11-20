@@ -1,0 +1,56 @@
+version: '3.9'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: hideverse_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-hideverse_root}
+      MYSQL_DATABASE: hideverse
+      MYSQL_USER: hideverse_app
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-hideverse_secret}
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+
+  redis:
+    image: redis:7-alpine
+    container_name: hideverse_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: hideverse_backend
+    restart: unless-stopped
+    depends_on:
+      - mysql
+      - redis
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      MYSQL_URL: mysql://hideverse_app:${MYSQL_PASSWORD:-hideverse_secret}@mysql:3306/hideverse
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      SESSION_SECRET: ${SESSION_SECRET:-rotate-in-production}
+    ports:
+      - '3000:3000'
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: hideverse_nginx
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '80:80'
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  mysql_data:

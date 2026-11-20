@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("MYSQL_URL")
+}
+
+model User {
+  id            BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  uid           String   @unique @db.VarChar(64)
+  username      String   @unique @db.VarChar(32)
+  email         String   @unique @db.VarChar(160)
+  passwordHash  String   @map("password_hash") @db.VarChar(255)
+  emailVerified Boolean  @default(false) @map("email_verified")
+  role          Role     @default(player)
+  isBanned      Boolean  @default(false) @map("is_banned")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  profile    UserProfile?
+  statistics PlayerStatistics?
+
+  @@map("users")
+}
+
+enum Role {
+  player
+  moderator
+  admin
+}
+
+model UserProfile {
+  userId            BigInt    @id @map("user_id") @db.UnsignedBigInt
+  displayName       String    @map("display_name") @db.VarChar(48)
+  photoUrl          String?   @map("photo_url") @db.VarChar(512)
+  bio               String?   @db.VarChar(280)
+  favoriteMap       String    @default("modern_house") @map("favorite_map") @db.VarChar(32)
+  equippedSkin      String    @default("skin_cyan_runner") @map("equipped_skin") @db.VarChar(48)
+  equippedAccessory String    @default("acc_none") @map("equipped_accessory") @db.VarChar(48)
+  onlineStatus      Boolean   @default(false) @map("online_status")
+  lastSeenAt        DateTime? @map("last_seen_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model PlayerStatistics {
+  userId           BigInt   @id @map("user_id") @db.UnsignedBigInt
+  level            Int      @default(1) @db.UnsignedInt
+  xp               BigInt   @default(0) @db.UnsignedBigInt
+  coins            BigInt   @default(200) @db.UnsignedBigInt
+  totalMatches     Int      @default(0) @map("total_matches") @db.UnsignedInt
+  wins             Int      @default(0) @db.UnsignedInt
+  losses           Int      @default(0) @db.UnsignedInt
+  totalTags        Int      @default(0) @map("total_tags") @db.UnsignedInt
+  totalPlaytimeSec BigInt   @default(0) @map("total_playtime_sec") @db.UnsignedBigInt
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("player_statistics")
+}

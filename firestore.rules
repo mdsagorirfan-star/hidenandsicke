@@ -1,0 +1,364 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'jjjj91551jjjj@gmail.com'
+      );
+    }
+
+    function isValidMapId(m) {
+      return m in ['modern_house', 'school', 'city', 'jungle', 'amusement_park'];
+    }
+
+    function isValidMode(m) {
+      return m in ['classic', 'team', 'infection', 'custom', 'quick'];
+    }
+
+    function isValidUserPrivate(data, userId) {
+      return data.keys().hasAll(['uid', 'username', 'email', 'role', 'isBanned', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'username', 'email', 'role', 'isBanned', 'emailVerified', 'createdAt', 'updatedAt'])
+        && data.uid == userId
+        && isValidId(data.uid)
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 32
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.role in ['player', 'moderator', 'admin']
+        && data.isBanned is bool
+        && (!('emailVerified' in data) || data.emailVerified is bool)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublicProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'username', 'displayName', 'level', 'xp', 'coins', 'wins', 'losses', 'matchesPlayed', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'username', 'displayName', 'photoUrl', 'bio', 'favoriteMap', 'level', 'xp', 'coins', 'wins', 'losses', 'matchesPlayed', 'playtimeSeconds', 'online', 'equippedSkin', 'equippedAccessory', 'updatedAt'])
+        && data.uid == userId
+        && isValidId(data.uid)
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 32
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 48
+        && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 512))
+        && (!('bio' in data) || (data.bio is string && data.bio.size() <= 280))
+        && (!('favoriteMap' in data) || isValidMapId(data.favoriteMap))
+        && data.level is int && data.level >= 1 && data.level <= 500
+        && data.xp is int && data.xp >= 0 && data.xp <= 100000000
+        && data.coins is int && data.coins >= 0 && data.coins <= 100000000
+        && data.wins is int && data.wins >= 0 && data.wins <= 1000000
+        && data.losses is int && data.losses >= 0 && data.losses <= 1000000
+        && data.matchesPlayed is int && data.matchesPlayed >= 0 && data.matchesPlayed <= 2000000
+        && (!('playtimeSeconds' in data) || (data.playtimeSeconds is int && data.playtimeSeconds >= 0))
+        && (!('online' in data) || data.online is bool)
+        && (!('equippedSkin' in data) || (data.equippedSkin is string && data.equippedSkin.size() <= 48))
+        && (!('equippedAccessory' in data) || (data.equippedAccessory is string && data.equippedAccessory.size() <= 48))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFriendRequest(data, reqId) {
+      return data.keys().hasAll(['id', 'fromUid', 'toUid', 'fromName', 'toName', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'fromUid', 'toUid', 'fromName', 'toName', 'status', 'createdAt', 'updatedAt'])
+        && data.id == reqId
+        && isValidId(data.id)
+        && isValidId(data.fromUid)
+        && isValidId(data.toUid)
+        && data.fromUid != data.toUid
+        && data.fromName is string && data.fromName.size() >= 1 && data.fromName.size() <= 48
+        && data.toName is string && data.toName.size() >= 1 && data.toName.size() <= 48
+        && data.status in ['pending', 'accepted', 'rejected']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFriendship(data, fId) {
+      return data.keys().hasAll(['id', 'userA', 'userB', 'createdAt'])
+        && data.keys().hasOnly(['id', 'userA', 'userB', 'createdAt'])
+        && data.id == fId
+        && isValidId(data.id)
+        && isValidId(data.userA)
+        && isValidId(data.userB)
+        && data.userA != data.userB
+        && data.createdAt is timestamp;
+    }
+
+    function isValidBlockedUser(data, bId) {
+      return data.keys().hasAll(['id', 'blockerUid', 'blockedUid', 'createdAt'])
+        && data.keys().hasOnly(['id', 'blockerUid', 'blockedUid', 'createdAt'])
+        && data.id == bId
+        && isValidId(data.id)
+        && isValidId(data.blockerUid)
+        && isValidId(data.blockedUid)
+        && data.blockerUid != data.blockedUid
+        && data.createdAt is timestamp;
+    }
+
+    function isValidMatchRecord(data, mId) {
+      return data.keys().hasAll(['id', 'roomId', 'roomName', 'mapId', 'mode', 'winnerRole', 'durationSeconds', 'hostUid', 'createdAt'])
+        && data.keys().hasOnly(['id', 'roomId', 'roomName', 'mapId', 'mode', 'winnerRole', 'durationSeconds', 'hostUid', 'createdAt'])
+        && data.id == mId
+        && isValidId(data.id)
+        && data.roomId is string && data.roomId.size() >= 1 && data.roomId.size() <= 64
+        && data.roomName is string && data.roomName.size() >= 1 && data.roomName.size() <= 64
+        && isValidMapId(data.mapId)
+        && isValidMode(data.mode)
+        && data.winnerRole in ['hiders', 'seekers']
+        && data.durationSeconds is int && data.durationSeconds >= 1 && data.durationSeconds <= 3600
+        && isValidId(data.hostUid)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidMessage(data, msgId) {
+      return data.keys().hasAll(['id', 'channelId', 'senderUid', 'senderName', 'text', 'createdAt'])
+        && data.keys().hasOnly(['id', 'channelId', 'senderUid', 'senderName', 'recipientUid', 'text', 'createdAt'])
+        && data.id == msgId
+        && isValidId(data.id)
+        && data.channelId is string && data.channelId.size() >= 1 && data.channelId.size() <= 128
+        && isValidId(data.senderUid)
+        && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 48
+        && (!('recipientUid' in data) || (data.recipientUid is string && data.recipientUid.size() <= 128))
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 500
+        && data.createdAt is timestamp;
+    }
+
+    function isValidNotification(data, nId) {
+      return data.keys().hasAll(['id', 'userId', 'type', 'title', 'body', 'read', 'createdAt'])
+        && data.keys().hasOnly(['id', 'userId', 'type', 'title', 'body', 'read', 'createdAt'])
+        && data.id == nId
+        && isValidId(data.id)
+        && isValidId(data.userId)
+        && data.type in ['friend_request', 'room_invite', 'reward', 'system']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 96
+        && data.body is string && data.body.size() >= 1 && data.body.size() <= 240
+        && data.read is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidReport(data, rId) {
+      return data.keys().hasAll(['id', 'reporterUid', 'targetUid', 'reason', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'reporterUid', 'targetUid', 'reason', 'details', 'status', 'createdAt', 'updatedAt'])
+        && data.id == rId
+        && isValidId(data.id)
+        && isValidId(data.reporterUid)
+        && isValidId(data.targetUid)
+        && data.reason is string && data.reason.size() >= 2 && data.reason.size() <= 64
+        && (!('details' in data) || (data.details is string && data.details.size() <= 500))
+        && data.status in ['open', 'resolved', 'dismissed']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAuditLog(data, lId) {
+      return data.keys().hasAll(['id', 'actorUid', 'action', 'targetId', 'createdAt'])
+        && data.keys().hasOnly(['id', 'actorUid', 'action', 'targetId', 'details', 'createdAt'])
+        && data.id == lId
+        && isValidId(data.id)
+        && isValidId(data.actorUid)
+        && data.action is string && data.action.size() >= 2 && data.action.size() <= 64
+        && data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 128
+        && (!('details' in data) || (data.details is string && data.details.size() <= 400))
+        && data.createdAt is timestamp;
+    }
+
+    match /test/connection {
+      allow get: if true;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerified() && isValidId(userId) && isOwner(userId)
+        && isValidUserPrivate(incoming(), userId)
+        && incoming().role == 'player'
+        && incoming().isBanned == false
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(userId)
+        && isValidUserPrivate(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().isBanned == existing().isBanned
+            && incoming().diff(existing()).affectedKeys().hasOnly(['username', 'emailVerified', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /public_profiles/{userId} {
+      allow get: if isValidId(userId);
+      allow list: if true;
+      allow create: if isVerified() && isValidId(userId) && isOwner(userId)
+        && isValidPublicProfile(incoming(), userId)
+        && incoming().level == 1
+        && incoming().xp == 0
+        && incoming().coins >= 0 && incoming().coins <= 250
+        && incoming().wins == 0
+        && incoming().losses == 0
+        && incoming().matchesPlayed == 0
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(userId)
+        && isValidPublicProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isOwner(userId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['username', 'displayName', 'photoUrl', 'bio', 'favoriteMap', 'online', 'equippedSkin', 'equippedAccessory', 'level', 'xp', 'coins', 'wins', 'losses', 'matchesPlayed', 'playtimeSeconds', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /friend_requests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId) && (existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid);
+      allow list: if isSignedIn() && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(requestId)
+        && isValidFriendRequest(incoming(), requestId)
+        && incoming().fromUid == request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(requestId)
+        && isValidFriendRequest(incoming(), requestId)
+        && existing().status == 'pending'
+        && incoming().id == existing().id
+        && incoming().fromUid == existing().fromUid
+        && incoming().toUid == existing().toUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && existing().toUid == request.auth.uid
+        && incoming().status in ['accepted', 'rejected']
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if isSignedIn() && isValidId(requestId) && (existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid || isAdmin());
+    }
+
+    match /friendships/{friendshipId} {
+      allow get: if isSignedIn() && isValidId(friendshipId) && (existing().userA == request.auth.uid || existing().userB == request.auth.uid);
+      allow list: if isSignedIn() && (resource.data.userA == request.auth.uid || resource.data.userB == request.auth.uid);
+      allow create: if isVerified() && isValidId(friendshipId)
+        && isValidFriendship(incoming(), friendshipId)
+        && (incoming().userA == request.auth.uid || incoming().userB == request.auth.uid)
+        && incoming().createdAt == request.time;
+      allow delete: if isSignedIn() && isValidId(friendshipId) && (existing().userA == request.auth.uid || existing().userB == request.auth.uid || isAdmin());
+    }
+
+    match /blocked_users/{blockId} {
+      allow get: if isSignedIn() && isValidId(blockId) && existing().blockerUid == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.blockerUid == request.auth.uid;
+      allow create: if isVerified() && isValidId(blockId)
+        && isValidBlockedUser(incoming(), blockId)
+        && incoming().blockerUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow delete: if isSignedIn() && isValidId(blockId) && existing().blockerUid == request.auth.uid;
+    }
+
+    match /matches/{matchId} {
+      allow get: if isValidId(matchId);
+      allow list: if true;
+      allow create: if isVerified() && isValidId(matchId)
+        && isValidMatchRecord(incoming(), matchId)
+        && incoming().hostUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow delete: if isAdmin() && isValidId(matchId);
+    }
+
+    match /messages/{messageId} {
+      allow get: if isSignedIn() && isValidId(messageId) && (
+        existing().senderUid == request.auth.uid ||
+        existing().recipientUid == request.auth.uid ||
+        !('recipientUid' in existing()) ||
+        existing().recipientUid == ''
+      );
+      allow list: if isSignedIn() && (
+        resource.data.senderUid == request.auth.uid ||
+        resource.data.recipientUid == request.auth.uid ||
+        !('recipientUid' in resource.data) ||
+        resource.data.recipientUid == ''
+      );
+      allow create: if isVerified() && isValidId(messageId)
+        && isValidMessage(incoming(), messageId)
+        && incoming().senderUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow delete: if isAdmin() && isValidId(messageId);
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && isValidId(notificationId) && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isVerified() && isValidId(notificationId)
+        && isValidNotification(incoming(), notificationId)
+        && incoming().createdAt == request.time
+        && (incoming().userId == request.auth.uid || isAdmin());
+      allow update: if isVerified() && isValidId(notificationId)
+        && isValidNotification(incoming(), notificationId)
+        && existing().userId == request.auth.uid
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow delete: if isSignedIn() && isValidId(notificationId) && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    match /reports/{reportId} {
+      allow get: if isSignedIn() && isValidId(reportId) && (existing().reporterUid == request.auth.uid || isAdmin());
+      allow list: if isAdmin() || (isSignedIn() && resource.data.reporterUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(reportId)
+        && isValidReport(incoming(), reportId)
+        && incoming().reporterUid == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isAdmin() && isValidId(reportId)
+        && isValidReport(incoming(), reportId)
+        && existing().status == 'open'
+        && incoming().id == existing().id
+        && incoming().reporterUid == existing().reporterUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(reportId);
+    }
+
+    match /admins/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /audit_logs/{logId} {
+      allow get: if isAdmin() && isValidId(logId);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(logId)
+        && isValidAuditLog(incoming(), logId)
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time;
+    }
+  }
+}
